@@ -4,7 +4,6 @@ import oauth2 as oauth
 import urllib
 import urlparse
 
-
 class TumblrClient(object):
     """A Python client for accessing the Tumblr v2 API"""
 
@@ -91,11 +90,15 @@ class TumblrClient(object):
 
         return json_response
 
-    def get_blog_info(self):
+    def get_blog_info(self, private=False):
         request_url = self.build_api_key_url(self.BLOG_URLS['info'])
-        return self.make_unauthorized_request(request_url)
 
-    def get_blog_posts(self, post_type=None, request_params={}):
+        if private:
+            return self.make_oauth_request(request_url)
+        else:
+            return self.make_unauthorized_request(request_url)
+
+    def get_blog_posts(self, post_type=None, request_params={}, private=False):
         if post_type:
             format_params = {
                 'type': post_type,
@@ -106,7 +109,10 @@ class TumblrClient(object):
             request_url = self.build_api_key_url(self.BLOG_URLS['posts'],
                 query_params=request_params)
 
-        return self.make_unauthorized_request(request_url)
+        if private:
+            return self.make_oauth_request(request_url)    
+        else:
+            return self.make_unauthorized_request(request_url)
 
     def get_blog_avatar_url(self, size=None):
         if size:
@@ -175,3 +181,34 @@ class TumblrClient(object):
 
         return self.make_oauth_request(request_url, method='POST',
             body=urllib.urlencode(request_params))
+
+class TumblrOAuthClient(object):
+    REQUEST_TOKEN_URL = 'https://www.tumblr.com/oauth/request_token'
+    AUTHORIZE_URL = 'https://www.tumblr.com/oauth/authorize'
+    ACCESS_TOKEN_URL = 'https://www.tumblr.com/oauth/access_token'
+    XAUTH_ACCESS_TOKEN_URL = 'https://www.tumblr.com/oauth/access_token'
+
+    def __init__(self, consumer_key, consumer_secret):
+        self.consumer = oauth.Consumer(consumer_key, consumer_secret)
+
+    def get_authorize_url(self):
+        client = oauth.Client(self.consumer)
+        resp, content = client.request(self.REQUEST_TOKEN_URL, "GET")
+        if resp['status'] != '200':
+            raise Exception("Invalid response %s." % resp['status'])
+
+        self.request_token = dict(urlparse.parse_qsl(content))
+        return "%s?oauth_token=%s" % (self.AUTHORIZE_URL,
+            self.request_token['oauth_token'])
+
+    def get_access_token(self, oauth_verifier):
+        token = oauth.Token(self.request_token['oauth_token'],
+            self.request_token['oauth_token_secret'])
+        token.set_verifier(oauth_verifier)
+        client = oauth.Client(self.consumer, token)
+
+        resp, content = client.request(self.ACCESS_TOKEN_URL, "POST")
+        access_token = dict(urlparse.parse_qsl(content))
+
+        return oauth.Token(access_token['oauth_token'],
+            access_token['oauth_token_secret'])
