@@ -10,6 +10,17 @@ class TumblrClient(object):
     API_SCHEME = 'http'
     API_HOST = 'api.tumblr.com'
 
+    USER_URLS = {
+        'info': '/v2/user/info',
+        'dashboard': '/v2/user/dashboard',
+        'likes': '/v2/user/likes',
+        'following': '/v2/user/following',
+        'follow': '/v2/user/follow',
+        'unfollow': '/v2/user/unfollow',
+        'like': '/v2/user/like',
+        'unlike': '/v2/user/unlike',
+        }
+
     BLOG_URLS = {
         'info': '/v2/blog/%(hostname)s/info',
         'avatar': '/v2/blog/%(hostname)s/avatar',
@@ -26,8 +37,7 @@ class TumblrClient(object):
         'delete': '/v2/blog/%(hostname)s/post/delete',
     }
 
-    def __init__(self, hostname, consumer, token=None):
-        self.hostname = hostname
+    def __init__(self, consumer, token=None):
         self.consumer = consumer
         self.token = token
 
@@ -42,8 +52,6 @@ class TumblrClient(object):
         return self.build_url(format_string, format_params, query_params)
 
     def build_url(self, format_string, format_params={}, query_params={}):
-        if 'hostname' not in format_params:
-            format_params['hostname'] = self.hostname
         path = format_string % format_params
         query_string = urllib.urlencode(query_params)
 
@@ -90,72 +98,98 @@ class TumblrClient(object):
 
         return json_response
 
-    def get_blog_info(self, private=False):
-        request_url = self.build_api_key_url(self.BLOG_URLS['info'])
+    def get_user_info(self, user, private=False):
+        request_url = self.build_api_key_url(self.USER_URLS['info'], { 'user': user })        
 
         if private:
             return self.make_oauth_request(request_url)
         else:
             return self.make_unauthorized_request(request_url)
 
-    def get_blog_posts(self, post_type=None, request_params={}, private=False):
-        if post_type:
-            format_params = {
-                'type': post_type,
-            }
-            request_url = self.build_api_key_url(self.BLOG_URLS['posts/type'],
-                format_params=format_params, query_params=request_params)
+    def get_blog_info(self, hostname, private=False):
+        request_url = self.build_api_key_url(self.BLOG_URLS['info'], { 'hostname': hostname })
+
+        if private:
+            return self.make_oauth_request(request_url)
         else:
-            request_url = self.build_api_key_url(self.BLOG_URLS['posts'],
-                query_params=request_params)
+            return self.make_unauthorized_request(request_url)
+
+    def get_blog_posts(self, hostname, private=False, post_type=None, request_params={}):
+        format_params = { 'hostname': hostname }
+        format_string = self.BLOG_URLS['posts']
+        if post_type:
+            format_params['type'] = post_type
+            format_string = self.BLOG_URLS['posts/type']
+        
+        request_url = self.build_api_key_url(format_string,
+                                             format_params=format_params,
+                                             query_params=request_params)
 
         if private:
             return self.make_oauth_request(request_url)    
         else:
             return self.make_unauthorized_request(request_url)
 
-    def get_blog_avatar_url(self, size=None):
+    def get_blog_avatar_url(self, hostname, size=None):
+        format_params = { 'hostname': hostname }
+        format_string = self.BLOG_URLS['avatar']
+
         if size:
-            format_params = {
-                'size': size,
-            }
-            return self.build_url(self.BLOG_URLS['avatar/size'],
-                format_params=format_params)
-        else:
-            return self.build_url(self.BLOG_URLS['avatar'])
+            format_params['size'] = size
+            format_string = self.BLOG_URLS['avatar/size']
 
-    def get_blog_followers(self, request_params={}):
+        return self.build_url(format_string, format_params)
+
+    def get_blog_followers(self, hostname, request_params={}):
+        format_params = { 'hostname': hostname }
+
         request_url = self.build_api_key_url(self.BLOG_URLS['followers'],
-            query_params=request_params)
+                                             format_params=format_params,
+                                             query_params=request_params)
 
         return self.make_oauth_request(request_url)
 
-    def get_blog_queue(self, request_params={}):
+    def get_blog_queue(self, hostname, request_params={}):
+        format_params = { 'hostname': hostname }
+
         request_url = self.build_api_key_url(self.BLOG_URLS['queue'],
-            query_params=request_params)
+                                             format_params=format_params,
+                                             query_params=request_params)
 
         return self.make_oauth_request(request_url)
 
-    def get_blog_drafts(self, request_params={}):
+    def get_blog_drafts(self, hostname, request_params={}):
+        format_params = { 'hostname': hostname }
+
         request_url = self.build_api_key_url(self.BLOG_URLS['draft'],
-            query_params=request_params)
+                                             format_params=format_params,
+                                             query_params=request_params)
 
         return self.make_oauth_request(request_url)
 
-    def get_blog_submissions(self, request_params={}):
+    def get_blog_submissions(self, hostname, request_params={}):
+        format_params = { 'hostname': hostname }
+
         request_url = self.build_api_key_url(self.BLOG_URLS['submission'],
-            query_params=request_params)
+                                             format_params=format_params,
+                                             query_params=request_params)
 
         return self.make_oauth_request(request_url)
 
-    def create_post(self, request_params={}):
-        request_url = self.build_url(self.BLOG_URLS['post'])
+    def create_post(self, hostname, request_params={}):
+        format_params = { 'hostname': hostname }
+
+        request_url = self.build_url(self.BLOG_URLS['post'],
+                                     format_params=format_params)
 
         return self.make_oauth_request(request_url, method='POST',
             body=urllib.urlencode(request_params))
 
-    def edit_post(self, post_id, request_params={}):
-        request_url = self.build_url(self.BLOG_URLS['edit'])
+    def edit_post(self, hostname, post_id, request_params={}):
+        format_params = { 'hostname': hostname }
+
+        request_url = self.build_url(self.BLOG_URLS['edit'],
+                                     format_params=format_params)
 
         if 'id' not in request_params:
             request_params['id'] = post_id
@@ -163,8 +197,11 @@ class TumblrClient(object):
         return self.make_oauth_request(request_url, method='POST',
             body=urllib.urlencode(request_params))
 
-    def reblog_post(self, reblog_key, request_params={}):
-        request_url = self.build_url(self.BLOG_URLS['edit'])
+    def reblog_post(self, hostname, reblog_key, request_params={}):
+        format_params = { 'hostname': hostname }
+
+        request_url = self.build_url(self.BLOG_URLS['edit'],
+                                     format_params=format_params)
 
         if 'reblog_key' not in request_params:
             request_params['reblog_key'] = reblog_key
@@ -172,8 +209,11 @@ class TumblrClient(object):
         return self.make_oauth_request(request_url, method='POST',
             body=urllib.urlencode(request_params))
 
-    def delete_post(self, post_id):
-        request_url = self.build_url(self.BLOG_URLS['delete'])
+    def delete_post(self, hostname, post_id):
+        format_params = { 'hostname': hostname }
+
+        request_url = self.build_url(self.BLOG_URLS['delete'],
+                                     format_params=format_params)
 
         request_params = {
             'id': post_id,
